@@ -1,0 +1,45 @@
+name: universal_studios_chatbot
+description: "Universal Studios Orlando app with intelligent chatbot recommendations"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.3 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Google Maps
+  google_maps_flutter: ^2.5.0
+  
+  # HTTP client
+  http: ^1.1.0
+  
+  # Location services
+  location: ^5.0.3
+  
+  # State management
+  provider: ^6.1.1
+  
+  # JSON handling
+  json_annotation: ^4.8.1
+  
+  # UI components
+  cupertino_icons: ^1.0.2
+  flutter_animate: ^4.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  json_serializable: ^6.7.1
+  build_runner: ^2.4.7
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/ 

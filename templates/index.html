@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Orlando Ride Recommender</title>
+    <!-- Google Maps API - Replace YOUR_API_KEY with your actual API key -->
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBK4v1KL-u028elz2M6B8gJYYOVCrpUJBw&callback=initMap"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0a1b4d 0%, #1e3c72 25%, #2a5298 50%, #f39c12 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            gap: 30px;
+            position: relative;
+            overflow-x: auto;
+        }
+
+        /* Universal Studios themed background pattern */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(243, 156, 18, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(52, 152, 219, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .main-content-wrapper {
+            display: flex;
+            gap: 30px;
+            width: 100%;
+            max-width: 1400px;
+            align-items: flex-start;
+            z-index: 1;
+            position: relative;
+        }
+
+        .container {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 249, 250, 0.95) 100%);
+            padding: 40px;
+            border-radius: 25px;
+            box-shadow: 
+                0 25px 50px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(52, 152, 219, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            width: 100%;
+            max-width: 480px;
+            text-align: center;
+            height: fit-content;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #3498db, #f39c12, #e74c3c, #3498db);
+            border-radius: 27px;
+            z-index: -1;
+            opacity: 0.6;
+        }
+
+        h1 {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 50%, #f39c12 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            font-size: 2.8em;
+            font-weight: 800;
+            letter-spacing: -1px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .subtitle {
+            color: #34495e;
+            margin-bottom: 35px;
+            font-size: 1.2em;
+            font-weight: 300;
+            letter-spacing: 0.5px;
+        }
+
+        .universal-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .form-group {
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 12px;
+            color: #2c3e50;
+            font-weight: 700;
+            font-size: 1.1em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 18px 20px;
+            border: 2px solid #ecf0f1;
+            border-radius: 15px;
+            font-size: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 
+                0 0 0 4px rgba(52, 152, 219, 0.1),
+                inset 0 2px 4px rgba(0, 0, 0, 0.06);
+            transform: translateY(-1px);
+        }
+
+        select:hover, input:hover {
+            border-color: #bdc3c7;
+            transform: translateY(-1px);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 50%, #1abc9c 100%);
+            color: white;
+            padding: 20px 40px;
+            border: none;
+            border-radius: 15px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 100%;
+            margin-top: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 
+                0 8px 25px rgba(52, 152, 219, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 
+                0 15px 35px rgba(52, 152, 219, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Enhanced Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(44, 62, 80, 0.8) 0%, rgba(52, 152, 219, 0.6) 100%);
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal-content {
+            background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+            margin: 8% auto;
+            padding: 40px;
+            border-radius: 25px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+            animation: slideInScale 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 
+                0 30px 60px rgba(0, 0, 0, 0.2),
+                0 0 0 1px rgba(52, 152, 219, 0.1);
+            position: relative;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+        }
+
+        .modal-content::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #3498db, #f39c12, #e74c3c, #3498db);
+            border-radius: 27px;
+            z-index: -1;
+            opacity: 0.3;
+        }
+
+        .close {
+            color: #7f8c8d;
+            float: right;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+            transition: all 0.3s ease;
+        }
+
+        .close:hover {
+            color: #e74c3c;
+            transform: rotate(90deg);
+        }
+
+        .recommendation {
+            margin: 25px 0;
+        }
+
+        .recommendation h3 {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+            font-size: 1.6em;
+            font-weight: 800;
+        }
+
+        .rec-details {
+            background: linear-gradient(145deg, #ecf0f1 0%, #ffffff 100%);
+            padding: 25px;
+            border-radius: 20px;
+            margin: 20px 0;
+            box-shadow: 
+                inset 0 2px 10px rgba(0, 0, 0, 0.05),
+                0 4px 20px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.1);
+        }
+
+        .rec-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(52, 152, 219, 0.1);
+        }
+
+        .rec-item:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+
+        .rec-value {
+            font-weight: 700;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .error {
+            color: #e74c3c;
+            background: linear-gradient(145deg, #fdf2f2 0%, #ffffff 100%);
+            padding: 25px;
+            border-radius: 15px;
+            border: 2px solid #fadbd8;
+            box-shadow: 0 4px 20px rgba(231, 76, 60, 0.1);
+        }
+
+        .loading {
+            display: none;
+            margin-top: 15px;
+        }
+
+        .spinner {
+            border: 4px solid #ecf0f1;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        .loading p {
+            color: #7f8c8d;
+            font-style: italic;
+            font-weight: 500;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideInScale {
+            from { 
+                transform: translateY(-50px) scale(0.9); 
+                opacity: 0; 
+            }
+            to { 
+                transform: translateY(0) scale(1); 
+                opacity: 1; 
+            }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .emoji {
+            font-size: 1.3em;
+            margin-right: 10px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+
+        .map-container {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 249, 250, 0.95) 100%);
+            padding: 25px;
+            border-radius: 25px;
+            box-shadow: 
+                0 25px 50px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(52, 152, 219, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            width: 100%;
+            flex-grow: 1;
+            height: 650px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+        }
+
+        .map-container::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #3498db, #f39c12, #e74c3c, #3498db);
+            border-radius: 27px;
+            z-index: -1;
+            opacity: 0.6;
+        }
+
+        .map-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .map-title {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 1.5em;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .map-subtitle {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #map {
+            height: calc(100% - 60px);
+            width: 100%;
+            border-radius: 15px;
+            border: 2px solid #ecf0f1;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .main-content-wrapper {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .container {
+                max-width: 600px;
+            }
+            
+            .map-container {
+                max-width: 600px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+            
+            .container {
+                padding: 30px 25px;
+            }
+            
+            h1 {
+                font-size: 2.2em;
+            }
+            
+            .map-container {
+                height: 400px;
+                padding: 20px;
+            }
+        }
+
+        /* Universal Studios Professional Touches */
+        .powered-by {
+            text-align: center;
+            margin-top: 20px;
+            color: #7f8c8d;
+            font-size: 0.8em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .beta-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.7em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 2px 10px rgba(243, 156, 18, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content-wrapper">
+        <div class="container">
+            <div class="beta-badge">Innovation Lab</div>
+            <h1>🎬 Universal Orlando</h1>
+            <div class="universal-badge">Smart Park Navigator</div>
+            <p class="subtitle">AI-Powered Ride Recommendation System</p>
+            
+            <form id="recommendationForm">
+                <div class="form-group">
+                    <label for="park">🏰 Select Your Park</label>
+                    <select id="park" name="park" required>
+                        <option value="">Choose your Universal destination...</option>
+                        <option value="Islands of Adventure" data-lat="28.4720" data-lon="-81.4700" data-zoom="16">🏝️ Islands of Adventure</option>
+                        <option value="Universal Studios" data-lat="28.477434" data-lon="-81.468841" data-zoom="16">🎬 Universal Studios Florida</option>
+                        <option value="Epic Universe" data-lat="28.441936" data-lon="-81.449327" data-zoom="16">🌌 Epic Universe</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="lastRide">🎢 Last Attraction Experienced</label>
+                    <select id="lastRide" name="lastRide" required>
+                        <option value="">Select your previous ride...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="weather">🌤️ Current Conditions</label>
+                    <select id="weather" name="weather">
+                        <option value="">Weather conditions...</option>
+                        <option value="sunny">☀️ Sunny & Clear</option>
+                        <option value="cloudy">☁️ Partly Cloudy</option>
+                        <option value="rainy">🌧️ Light Rain</option>
+                        <option value="stormy">⛈️ Thunderstorms</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn" id="submitBtn">
+                    <span class="emoji">🎯</span>Get Smart Recommendation
+                </button>
+                
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Analyzing optimal attractions...</p>
+                </div>
+            </form>
+            
+            <div class="powered-by">
+                Powered by Universal Innovation Labs
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div class="map-header">
+                <div class="map-title">🗺️ Interactive Park Map</div>
+                <div class="map-subtitle">Real-time Navigation & Walking Directions</div>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Modal for recommendation text (no map here anymore) -->
+    <div id="recommendationModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const RIDE_COORDS_FRONTEND = JSON.parse('{{ ride_coords_all | tojson | safe }}');
+        const rideOptionsByPark = {
+            "Islands of Adventure": [
+                "Harry Potter and the Forbidden Journey™", "Flight of the Hippogriff™",
+                "Hagrid's Magical Creatures Motorbike Adventure™", "Jurassic World VelociCoaster",
+                "The Incredible Hulk Coaster®", "The Amazing Adventures of Spider-Man®",
+                "Skull Island: Reign of Kong™", "Jurassic Park River Adventure™",
+                "Pteranodon Flyers™", "Doctor Doom's Fearfall®",
+                "Storm Force Accelatron®", "Caro-Seuss-el™",
+                "One Fish, Two Fish, Red Fish, Blue Fish™", "The Cat In The Hat™",
+                "The High in the Sky Seuss Trolley Train Ride!™", "Dudley Do-Right's Ripsaw Falls®",
+                "Popeye & Bluto's Bilge-Rat Barges®"
+            ],
+            "Universal Studios": [
+                "Revenge of the Mummy™", "Hollywood Rip Ride Rockit™",
+                "E.T. Adventure™", "Despicable Me Minion Mayhem™",
+                "Illumination's Villain-Con Minion Blast", "Race Through New York Starring Jimmy Fallon™",
+                "TRANSFORMERS™: The Ride-3D", "Fast & Furious - Supercharged™",
+                "Harry Potter and the Escape from Gringotts™", "Kang & Kodos' Twirl 'n' Hurl",
+                "MEN IN BLACK™ Alien Attack!™", "The Simpsons Ride™"
+            ],
+            "Epic Universe": [
+                "Constellation Carousel", "Stardust Racers",
+                "Curse of the Werewolf", "Monsters Unchained: The Frankenstein Experiment",
+                "Dragon Racer's Rally", "Fyre Drill", "Hiccup Wing Glider",
+                "Mario Kart™: Bowser's Challenge", "Mine-Cart Madness™", "Yoshi's Adventure™",
+                "Harry Potter and the Battle at the Ministry™"
+            ]
+        };
+
+        // Google Maps variables
+        let mapInstance = null;
+        let lastRideMarker = null;
+        let recommendedRideMarker = null;
+        let directionsService = null;
+        let directionsRenderer = null;
+
+        // Initialize Google Map
+        function initMap() {
+            // Initialize map with default location (broader Universal Orlando area view)
+            mapInstance = new google.maps.Map(document.getElementById('map'), {
+                zoom: 12,
+                center: { lat: 28.4450, lng: -81.4635 },
+                mapTypeId: google.maps.MapTypeId.ROADMAP
+            });
+
+            // Initialize Directions Service and Renderer
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer({
+                suppressMarkers: true, // We'll use our own custom markers
+                polylineOptions: {
+                    strokeColor: '#667eea',
+                    strokeOpacity: 1.0,
+                    strokeWeight: 4
+                }
+            });
+            directionsRenderer.setMap(mapInstance);
+
+            // Initialize event listeners after map is loaded
+            initializeEventListeners();
+        }
+
+        function updateMapCenter(lat, lon, zoom) {
+            if (mapInstance) {
+                // Smooth transition to new location
+                mapInstance.panTo({ lat: lat, lng: lon });
+                setTimeout(() => {
+                    mapInstance.setZoom(zoom);
+                }, 500); // Delay zoom change for smoother transition
+            }
+        }
+
+        function clearRideMarkers() {
+            if (lastRideMarker) {
+                lastRideMarker.setMap(null);
+                lastRideMarker = null;
+            }
+            if (recommendedRideMarker) {
+                recommendedRideMarker.setMap(null);
+                recommendedRideMarker = null;
+            }
+            if (directionsRenderer) {
+                directionsRenderer.setDirections({routes: []});
+            }
+        }
+
+        function calculateWalkingRoute(startCoords, endCoords, startName, endName, waitTime) {
+            const start = new google.maps.LatLng(startCoords[0], startCoords[1]);
+            const end = new google.maps.LatLng(endCoords[0], endCoords[1]);
+
+            const request = {
+                origin: start,
+                destination: end,
+                travelMode: google.maps.TravelMode.WALKING,
+                unitSystem: google.maps.UnitSystem.METRIC,
+                avoidHighways: true,
+                avoidTolls: true
+            };
+
+            directionsService.route(request, (result, status) => {
+                if (status === 'OK') {
+                    directionsRenderer.setDirections(result);
+                    
+                    // Get the walking duration and distance from directions
+                    const route = result.routes[0];
+                    const leg = route.legs[0];
+                    const walkingTime = leg.duration.text;
+                    const walkingDistance = leg.distance.text;
+                    
+                    console.log(`🚶 Walking route: ${walkingDistance} (${walkingTime})`);
+                    
+                    // Add our custom markers on top of the route
+                    addCustomMarkers(startCoords, endCoords, startName, endName, waitTime, walkingTime, walkingDistance);
+                    
+                    // Update the modal content with walking time
+                    updateModalWithWalkingTime(endName, waitTime, walkingTime);
+                } else {
+                    console.warn('Directions request failed due to ' + status);
+                    // Fallback to straight line if directions fail
+                    addCustomMarkers(startCoords, endCoords, startName, endName, waitTime, "Unknown", "Unknown");
+                    drawStraightLine(startCoords, endCoords);
+                    
+                    // Update modal with fallback info
+                    updateModalWithWalkingTime(endName, waitTime, "~2-5 min walk");
+                }
+            });
+        }
+
+        function updateModalWithWalkingTime(rideName, waitTime, walkingTime) {
+            const modalContentEl = document.getElementById('modalContent');
+            modalContentEl.innerHTML = `
+                <div class="recommendation">
+                    <h3>🎯 Your Optimal Next Experience</h3>
+                    <div class="rec-details">
+                        <div class="rec-item"><span>🎢 Recommended Attraction:</span><span class="rec-value">${rideName}</span></div>
+                        <div class="rec-item"><span>⏱️ Current Wait Time:</span><span class="rec-value">${waitTime} minutes</span></div>
+                        <div class="rec-item"><span>🚶 Walking Duration:</span><span class="rec-value">${walkingTime}</span></div>
+                    </div>
+                    <p style="margin-top: 20px; color: #7f8c8d; font-style: italic;">🗺️ Follow the highlighted path on your interactive map for optimal navigation! ✨</p>
+                </div>`;
+        }
+
+        function addCustomMarkers(startCoords, endCoords, startName, endName, waitTime, walkingTime, walkingDistance) {
+            // Add last ride marker (red)
+            if (lastRideMarker) {
+                lastRideMarker.setMap(null);
+            }
+            lastRideMarker = new google.maps.Marker({
+                position: { lat: startCoords[0], lng: startCoords[1] },
+                map: mapInstance,
+                title: `Last Ride: ${startName}`,
+                icon: {
+                    url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
+                }
+            });
+
+            // Add recommended ride marker (green)
+            if (recommendedRideMarker) {
+                recommendedRideMarker.setMap(null);
+            }
+            recommendedRideMarker = new google.maps.Marker({
+                position: { lat: endCoords[0], lng: endCoords[1] },
+                map: mapInstance,
+                title: `Next Ride: ${endName}`,
+                icon: {
+                    url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                }
+            });
+
+            // Add enhanced info windows with walking info
+            const lastInfoWindow = new google.maps.InfoWindow({
+                content: `<div><strong>Last Ride:</strong><br>${startName}<br><em>Starting point</em></div>`
+            });
+            const recInfoWindow = new google.maps.InfoWindow({
+                content: `<div><strong>Recommended:</strong><br>${endName}<br><strong>Wait:</strong> ${waitTime} min<br><strong>Walk:</strong> ${walkingDistance} (${walkingTime})</div>`
+            });
+
+            lastRideMarker.addListener('click', () => {
+                lastInfoWindow.open(mapInstance, lastRideMarker);
+            });
+            recommendedRideMarker.addListener('click', () => {
+                recInfoWindow.open(mapInstance, recommendedRideMarker);
+            });
+        }
+
+        function drawStraightLine(startCoords, endCoords) {
+            // Fallback straight line if directions API fails
+            const straightLine = new google.maps.Polyline({
+                path: [
+                    { lat: startCoords[0], lng: startCoords[1] },
+                    { lat: endCoords[0], lng: endCoords[1] }
+                ],
+                geodesic: true,
+                strokeColor: '#ff6b6b',
+                strokeOpacity: 0.8,
+                strokeWeight: 3,
+                strokePattern: [20, 20] // Dashed line to indicate it's a fallback
+            });
+            straightLine.setMap(mapInstance);
+        }
+
+        function initializeEventListeners() {
+            const parkSelect = document.getElementById('park');
+            const rideSelect = document.getElementById('lastRide');
+
+            parkSelect.addEventListener('change', function() {
+                const selectedParkOption = this.options[this.selectedIndex];
+                const parkName = this.value;
+                rideSelect.innerHTML = '<option value="">Select a ride...</option>';
+                clearRideMarkers();
+
+                if (parkName && rideOptionsByPark[parkName]) {
+                    rideOptionsByPark[parkName].forEach(ride => {
+                        const option = document.createElement('option');
+                        option.value = ride;
+                        option.textContent = ride;
+                        rideSelect.appendChild(option);
+                    });
+                    // Recenter map
+                    updateMapCenter(
+                        parseFloat(selectedParkOption.dataset.lat),
+                        parseFloat(selectedParkOption.dataset.lon),
+                        parseInt(selectedParkOption.dataset.zoom)
+                    );
+                } else if (parkName === "") {
+                    // Default view when no park selected - show broader Universal Orlando area
+                    updateMapCenter(28.4450, -81.4635, 12);
+                }
+            });
+
+            rideSelect.addEventListener('change', function() {
+                const rideName = this.value;
+                // Clear recommendation markers when selecting new last ride
+                if (recommendedRideMarker) {
+                    recommendedRideMarker.setMap(null);
+                    recommendedRideMarker = null;
+                }
+                if (directionsRenderer) {
+                    directionsRenderer.setDirections({routes: []});
+                }
+
+                if (rideName && RIDE_COORDS_FRONTEND[rideName]) {
+                    const coords = RIDE_COORDS_FRONTEND[rideName];
+                    
+                    // Remove existing last ride marker
+                    if (lastRideMarker) {
+                        lastRideMarker.setMap(null);
+                    }
+                    
+                    // Add new last ride marker (red)
+                    lastRideMarker = new google.maps.Marker({
+                        position: { lat: coords[0], lng: coords[1] },
+                        map: mapInstance,
+                        title: `Last Ride: ${rideName}`,
+                        icon: {
+                            url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
+                        }
+                    });
+
+                    // Add info window
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: `<div><strong>Last Ride:</strong><br>${rideName}</div>`
+                    });
+                    
+                    lastRideMarker.addListener('click', () => {
+                        infoWindow.open(mapInstance, lastRideMarker);
+                    });
+
+                    // Center map on the ride
+                    mapInstance.setCenter({ lat: coords[0], lng: coords[1] });
+                    mapInstance.setZoom(17);
+                } else {
+                    // Remove last ride marker if no ride selected
+                    if (lastRideMarker) {
+                        lastRideMarker.setMap(null);
+                        lastRideMarker = null;
+                    }
+                }
+            });
+
+            document.getElementById('recommendationForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const submitBtn = document.getElementById('submitBtn');
+                const loadingDiv = document.getElementById('loading');
+                const modal = document.getElementById('recommendationModal');
+                const modalContentEl = document.getElementById('modalContent');
+
+                submitBtn.disabled = true;
+                loadingDiv.style.display = 'block';
+
+                const formData = new FormData(this);
+                const data = {
+                    last_ride: formData.get('lastRide'),
+                    park: formData.get('park'),
+                    weather: formData.get('weather') || null,
+                    hour: new Date().getHours()
+                };
+
+                try {
+                    const response = await fetch('/recommend', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(data)
+                    });
+                    const result = await response.json();
+
+                    if (result.error) {
+                        modalContentEl.innerHTML = `<div class="error"><h3>❌ Oops!</h3><p>${result.error}</p></div>`;
+                        if (recommendedRideMarker) {
+                            recommendedRideMarker.setMap(null);
+                            recommendedRideMarker = null;
+                        }
+                        if (directionsRenderer) {
+                            directionsRenderer.setDirections({routes: []});
+                        }
+                    } else {
+                        // Show initial modal with basic info (walking time will be updated by calculateWalkingRoute)
+                        modalContentEl.innerHTML = `
+                            <div class="recommendation">
+                                <h3>🎯 Your Optimal Next Experience</h3>
+                                <div class="rec-details">
+                                    <div class="rec-item"><span>🎢 Recommended Attraction:</span><span class="rec-value">${result.recommendation}</span></div>
+                                    <div class="rec-item"><span>⏱️ Current Wait Time:</span><span class="rec-value">${result.wait_time} minutes</span></div>
+                                    <div class="rec-item"><span>🚶 Walking Duration:</span><span class="rec-value">Calculating optimal route...</span></div>
+                                </div>
+                                <p style="margin-top: 20px; color: #7f8c8d; font-style: italic;">🗺️ Generating your personalized navigation path... ✨</p>
+                            </div>`;
+                        
+                        const lastCoords = result.last_ride_coords;
+                        const recCoords = result.recommendation_coords;
+
+                        // Calculate and display the actual walking route
+                        calculateWalkingRoute(
+                            lastCoords, 
+                            recCoords, 
+                            data.last_ride, 
+                            result.recommendation,
+                            result.wait_time
+                        );
+                    }
+                    modal.style.display = 'block';
+                } catch (error) {
+                    modalContentEl.innerHTML = `<div class="error"><h3>❌ Connection Error</h3><p>Could not get recommendation. Please try again.</p></div>`;
+                    modal.style.display = 'block';
+                } finally {
+                    submitBtn.disabled = false;
+                    loadingDiv.style.display = 'none';
+                }
+            });
+
+            document.querySelector('.close').addEventListener('click', () => {
+                document.getElementById('recommendationModal').style.display = 'none';
+            });
+            window.addEventListener('click', (event) => {
+                if (event.target == document.getElementById('recommendationModal')) {
+                    document.getElementById('recommendationModal').style.display = 'none';
+                }
+            });
+        }
+
+        // Fallback if Google Maps fails to load
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            if (msg.includes('google') || msg.includes('maps')) {
+                console.error('Google Maps failed to load. Please check your API key.');
+                document.getElementById('map').innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;"><p>Map failed to load. Please check Google Maps API configuration.</p></div>';
+            }
+        };
+    </script>
+</body>
+</html> 
