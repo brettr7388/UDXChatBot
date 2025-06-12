@@ -18,7 +18,7 @@
 # STEPS FOR CURSOR AGENT:
 # 1. Ensure Python 3.x is installed.
 # 2. Install dependencies:
-#       pip install requests flask
+#       pip install requests flask python-dotenv
 # 3. Save this file as `predictive_in_park.py`.
 # 4. Run it locally:
 #       python predictive_in_park.py
@@ -41,12 +41,27 @@
 #    and replace the simple heuristic in `recommend_next_ride` with a model inference call.
 # ────────────────────────────────────────────────────────────────────────────────
 
+import os
 import requests
 from flask import Flask, request, jsonify, render_template
 from math import radians, cos, sin, sqrt, atan2
 import random
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
+
+# Configuration from environment variables
+FLASK_HOST = os.getenv('FLASK_HOST', '127.0.0.1')
+FLASK_PORT = int(os.getenv('FLASK_PORT', 5000))
+FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
+
+# Validate required environment variables
+if not GOOGLE_MAPS_API_KEY:
+    print("Warning: GOOGLE_MAPS_API_KEY not found in environment variables")
 
 # ────────────────────────────────────────────────────────────────────────────────
 # 1) PARK IDs FOR UNIVERSAL ORLANDO (Queue-Times API)
@@ -320,4 +335,4 @@ def debug_endpoint():
 # ────────────────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000) 
+    app.run(debug=FLASK_DEBUG, port=FLASK_PORT) 
