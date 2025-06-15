@@ -121,10 +121,11 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
                "Or if you want another ride recommendation, just ask! 😊";
       }
 
-      // Use the most recently recommended ride as the "last ride" if we have session history
-      if (lastRide == null && _recommendedRides.isNotEmpty) {
-        lastRide = _recommendedRides.last;
-      }
+      // Don't use recommended rides as the "last ride" - only use actual visited rides
+      // This prevents the ping-pong effect where recommendations become starting points
+      // if (lastRide == null && _recommendedRides.isNotEmpty) {
+      //   lastRide = _recommendedRides.last;
+      // }
 
       if (lastRide == null) {
         lastRide = _fallbackPopularRides[_random.nextInt(_fallbackPopularRides.length)];
@@ -159,7 +160,6 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
       if (recommendation != null) {
         // Add the new recommendation to our session tracking
         _recommendedRides.add(recommendation.rideName);
-        locationService.addVisitedRide(recommendation.rideName);
         
         String sessionInfo = "";
         if (_recommendedRides.length > 2) {

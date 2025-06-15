@@ -1,5 +1,5 @@
 # ────────────────────────────────────────────────────────────────────────────────
-# Cursor Agent Mode Script: Predictive In-Park Recommendation
+# Cursor Agent Mode Script: Predictive In-Park Recommendation API
 #
 # STORY:
 # You want a service that, whenever a user exits a ride at one of Universal Orlando's parks
@@ -13,7 +13,7 @@
 #  3. Defines a helper (Haversine) to compute real‐world distances.
 #  4. Fetches live wait times from queue‐times.com for the specified park.
 #  5. Uses a simple "distance + wait * 10" heuristic to pick the best next ride.
-#  6. Exposes a Flask endpoint (/recommend) that accepts JSON and returns the recommendation.
+#  6. Exposes a Flask API endpoint (/recommend) that accepts JSON and returns the recommendation.
 #
 # STEPS FOR CURSOR AGENT:
 # 1. Ensure Python 3.x is installed.
@@ -33,17 +33,14 @@
 #           "hour": 14
 #         }
 #    You should get back a JSON recommending the next ride.
-# 7. Once verified, integrate this endpoint into your n8n flow:
-#    – Use an HTTP Webhook trigger (e.g. /in_park_event) to receive user events.
-#    – Add an HTTP Request node to call http://localhost:5000/recommend with the same JSON.
-#    – Grab the response ("recommendation", "wait_time", "distance_meters") and send it via Slack or Email.
+# 7. Once verified, integrate this endpoint into your Flutter mobile app.
 # 8. To expand later, collect historical ride‐sequence + wait‐time data, train a decision‐tree/XGBoost,
 #    and replace the simple heuristic in `recommend_next_ride` with a model inference call.
 # ────────────────────────────────────────────────────────────────────────────────
 
 import os
 import requests
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify
 from math import radians, cos, sin, sqrt, atan2
 import random
 from dotenv import load_dotenv
@@ -57,11 +54,6 @@ app = Flask(__name__)
 FLASK_HOST = os.getenv('FLASK_HOST', '127.0.0.1')
 FLASK_PORT = int(os.getenv('FLASK_PORT', 5000))
 FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
-GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
-
-# Validate required environment variables
-if not GOOGLE_MAPS_API_KEY:
-    print("Warning: GOOGLE_MAPS_API_KEY not found in environment variables")
 
 # ────────────────────────────────────────────────────────────────────────────────
 # 1) PARK IDs FOR UNIVERSAL ORLANDO (Queue-Times API)
@@ -261,16 +253,6 @@ def recommend_next_ride(last_ride, current_park_name, weather=None, hour=None, e
     }
 
 # ────────────────────────────────────────────────────────────────────────────────
-# 0) HOMEPAGE ROUTE
-#    Serves the main web interface for users to get recommendations
-# ────────────────────────────────────────────────────────────────────────────────
-
-@app.route('/')
-def homepage():
-    """Serve the main homepage with the recommendation form"""
-    return render_template('index.html', ride_coords_all=RIDE_COORDS)
-
-# ────────────────────────────────────────────────────────────────────────────────
 # 6) FLASK ENDPOINT: /recommend
 #    Expects JSON payload:
 #      {
@@ -335,4 +317,4 @@ def debug_endpoint():
 # ────────────────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    app.run(debug=FLASK_DEBUG, port=FLASK_PORT) 
+    app.run(debug=FLASK_DEBUG, port=FLASK_PORT, host=FLASK_HOST) 
