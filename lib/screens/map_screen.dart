@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import '../widgets/chatbot_dialog.dart';
 import '../services/location_service.dart';
 import 'dart:math' as math;
+import '../services/recommendation_service.dart';
+import '../services/directions_service.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -27,6 +29,11 @@ class _MapScreenState extends State<MapScreen> {
   Set<Polyline> _polylines = {};
   String? _currentDirectionFrom;
   String? _currentDirectionTo;
+  
+  // Directions panel variables
+  String? _selectedFromRide;
+  String? _selectedToRide;
+  bool _showDirectionsPanel = false;
   
   // Universal Orlando coordinates
   static const CameraPosition _initialPosition = CameraPosition(
@@ -333,6 +340,133 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  void _showLocationTestingPanel() {
+    final testLocations = [
+      {'name': '🏰 Park Entrance', 'lat': 28.4744, 'lng': -81.4687, 'desc': 'Universal Orlando Center'},
+      {'name': '🦕 Islands of Adventure', 'lat': 28.4722, 'lng': -81.4708, 'desc': 'IOA Main Area'},
+      {'name': '🌍 Universal Studios', 'lat': 28.4766, 'lng': -81.4677, 'desc': 'USF Main Area'},
+      {'name': '⚡ Near Hulk Coaster', 'lat': 28.471513, 'lng': -81.468761, 'desc': 'Marvel Super Hero Island'},
+      {'name': '🪄 Near Harry Potter (IOA)', 'lat': 28.472621, 'lng': -81.472998, 'desc': 'Hogsmeade Village'},
+      {'name': '🪄 Near Harry Potter (USF)', 'lat': 28.479903, 'lng': -81.470182, 'desc': 'Diagon Alley'},
+      {'name': '👽 Near Men in Black', 'lat': 28.480728, 'lng': -81.467669, 'desc': 'World Expo Area'},
+      {'name': '🦖 Near Jurassic Park', 'lat': 28.470427, 'lng': -81.474121, 'desc': 'Jurassic Park Area'},
+      {'name': '🎢 Near VelociCoaster', 'lat': 28.471231, 'lng': -81.472616, 'desc': 'Jurassic World Area'},
+      {'name': '🎭 Near Simpsons', 'lat': 28.4794389, 'lng': -81.4673639, 'desc': 'Springfield Area'},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '🧪 Location Testing Panel',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Choose a starting location to test different chatbot scenarios:',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.builder(
+                itemCount: testLocations.length,
+                itemBuilder: (context, index) {
+                  final location = testLocations[index];
+                  return Card(
+                    child: ListTile(
+                      leading: Text(
+                        (location['name'] as String).split(' ')[0],
+                        style: const TextStyle(fontSize: 24),
+                      ),
+                      title: Text(
+                        (location['name'] as String).substring(2),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(location['desc'] as String),
+                          Text(
+                            '${location['lat']}, ${location['lng']}',
+                            style: const TextStyle(fontSize: 11, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                      trailing: const Icon(Icons.location_on, color: Colors.blue),
+                      onTap: () {
+                        final locationService = Provider.of<LocationService>(context, listen: false);
+                        locationService.setManualLocation(
+                          location['lat'] as double,
+                          location['lng'] as double,
+                        );
+                        
+                        // Move camera to the new location
+                        _mapController?.animateCamera(
+                          CameraUpdate.newCameraPosition(
+                            CameraPosition(
+                              target: LatLng(location['lat'] as double, location['lng'] as double),
+                              zoom: 17.0,
+                            ),
+                          ),
+                        );
+                        
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('📍 Set location to: ${(location['name'] as String).substring(2)}'),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '💡 Testing Tips:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Text('• Set location, then open chatbot to test recommendations'),
+                  Text('• Try "What rides should I do?" from different locations'),
+                  Text('• Test "Where am I?" to verify location detection'),
+                  Text('• Ask for directions between rides'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showChatbot() {
     showDialog(
       context: context,
@@ -342,50 +476,155 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  void _showDirections(String fromRide, String toRide) {
-    // Get coordinates from LocationService
-    final rideCoordinates = LocationService.rideCoordinates;
-    
-    final fromCoords = rideCoordinates[fromRide];
-    final toCoords = rideCoordinates[toRide];
-    
-    if (fromCoords == null || toCoords == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not find coordinates for one of the rides'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    
+  void _showDirections(String fromRide, String toRide) async {
+    // Show loading state
     setState(() {
-      _currentDirectionFrom = fromRide;
-      _currentDirectionTo = toRide;
-      
-      // Create polyline
-      _polylines = {
-        Polyline(
-          polylineId: const PolylineId('direction_path'),
-          points: [fromCoords, toCoords],
-          color: const Color(0xFF1976D2),
-          width: 4,
-          patterns: [], // Solid line
-        ),
-      };
+      _isLocationLoading = true;
     });
-    
-    // Animate camera to show both points
-    _fitToDirections(fromCoords, toCoords);
-    
-    // Show confirmation
+
+    try {
+      // Get coordinates from LocationService
+      final rideCoordinates = LocationService.rideCoordinates;
+      
+      final fromCoords = rideCoordinates[fromRide];
+      final toCoords = rideCoordinates[toRide];
+      
+      if (fromCoords == null || toCoords == null) {
+        _showErrorSnackBar('Could not find coordinates for one of the rides');
+        return;
+      }
+      
+      // IMPORTANT: Mark the target ride as visited to prevent re-recommendation
+      final locationService = Provider.of<LocationService>(context, listen: false);
+      locationService.addVisitedRide(toRide);
+      locationService.markRideAsTarget(toRide);
+      
+      // Get walking directions using the new DirectionsService
+      final directionsResult = await DirectionsService.getWalkingDirections(
+        origin: fromCoords,
+        destination: toCoords,
+      );
+      
+      if (directionsResult != null) {
+        setState(() {
+          _currentDirectionFrom = fromRide;
+          _currentDirectionTo = toRide;
+          
+          // Create polyline with proper walking route
+          _polylines = {
+            DirectionsService.createPolyline(
+              polylineId: 'walking_route',
+              points: directionsResult.polylinePoints,
+              color: directionsResult.isFallback ? Colors.orange : const Color(0xFF1976D2),
+              width: 5.0,
+              isDashed: directionsResult.isFallback,
+            ),
+          };
+        });
+        
+        // Fit camera to show the entire route
+        _fitToDirections(directionsResult.polylinePoints.first, directionsResult.polylinePoints.last);
+        
+        // Show route information
+        _showRouteInfoDialog(directionsResult, fromRide, toRide);
+        
+      } else {
+        _showErrorSnackBar('Could not calculate walking route');
+      }
+      
+    } catch (e) {
+      print('Error showing directions: $e');
+      _showErrorSnackBar('Error calculating directions: $e');
+    } finally {
+      setState(() {
+        _isLocationLoading = false;
+      });
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Showing directions from $fromRide to $toRide'),
-        backgroundColor: Colors.green,
-        action: SnackBarAction(
-          label: 'Clear',
-          onPressed: _clearDirections,
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showRouteInfoDialog(DirectionsResult result, String fromRide, String toRide) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Walking Directions',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.location_on, color: Colors.red),
+                const SizedBox(width: 8),
+                Expanded(child: Text('From: $fromRide')),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.flag, color: Colors.green),
+                const SizedBox(width: 8),
+                Expanded(child: Text('To: $toRide')),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.straighten, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text('Distance: ${result.totalDistance}'),
+                const SizedBox(width: 20),
+                const Icon(Icons.access_time, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text('Time: ${result.totalDuration}'),
+              ],
+            ),
+            if (result.isFallback) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Showing direct path - detailed walking route unavailable',
+                        style: TextStyle(color: Colors.orange[800]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1976D2),
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 44),
+              ),
+              child: const Text('Got it!'),
+            ),
+          ],
         ),
       ),
     );
@@ -419,6 +658,117 @@ class _MapScreenState extends State<MapScreen> {
     
     _mapController!.animateCamera(
       CameraUpdate.newLatLngBounds(bounds, 100),
+    );
+  }
+
+  Widget _buildDirectionsPanel() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Get Walking Directions',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _showDirectionsPanel = false;
+                      _selectedFromRide = null;
+                      _selectedToRide = null;
+                    });
+                  },
+                  icon: const Icon(Icons.close),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildRideDropdown(
+                    'From',
+                    _selectedFromRide,
+                    (value) => setState(() => _selectedFromRide = value),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildRideDropdown(
+                    'To',
+                    _selectedToRide,
+                    (value) => setState(() => _selectedToRide = value),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: (_selectedFromRide != null && _selectedToRide != null)
+                    ? () {
+                        _showDirections(_selectedFromRide!, _selectedToRide!);
+                        setState(() {
+                          _showDirectionsPanel = false; // Hide panel after getting directions
+                        });
+                      }
+                    : null,
+                icon: const Icon(Icons.directions_walk),
+                label: const Text('Get Walking Directions'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1976D2),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRideDropdown(String label, String? value, Function(String?) onChanged) {
+    final rideCoordinates = LocationService.rideCoordinates;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12)),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          value: value,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            isDense: true,
+          ),
+          hint: const Text('Select ride', style: TextStyle(fontSize: 11)),
+          isExpanded: true,
+          items: rideCoordinates.keys.map((String rideName) {
+            return DropdownMenuItem<String>(
+              value: rideName,
+              child: Text(
+                rideName,
+                style: const TextStyle(fontSize: 9),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            );
+          }).toList(),
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 
@@ -466,8 +816,11 @@ class _MapScreenState extends State<MapScreen> {
                           Text('Location: ${userLoc?.latitude.toStringAsFixed(6) ?? 'null'}, ${userLoc?.longitude.toStringAsFixed(6) ?? 'null'}'),
                           Text('Current Park: ${locationService.currentPark ?? 'None'}'),
                           Text('Visited Rides: ${locationService.visitedRides.length}'),
+                          Text('Last Visited: ${locationService.lastVisitedRide ?? 'None'}'),
                           const SizedBox(height: 10),
                           const Text('For Simulator:\n1. Device > Location > Custom Location\n2. Set: 28.4744, -81.4687', style: TextStyle(fontSize: 12)),
+                          const SizedBox(height: 10),
+                          const Text('VelociCoaster coords: 28.471231, -81.472616', style: TextStyle(fontSize: 11, color: Colors.blue)),
                         ],
                       ),
                       actions: [
@@ -494,8 +847,22 @@ class _MapScreenState extends State<MapScreen> {
                           child: const Text('Use Test Location'),
                         ),
                         TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('OK'),
+                          onPressed: () {
+                            // Clear manual location and return to GPS
+                            locationService.clearManualLocation();
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Cleared manual location - using GPS')),
+                            );
+                          },
+                          child: const Text('Clear Manual Location'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _showLocationTestingPanel();
+                          },
+                          child: const Text('Location Testing'),
                         ),
                       ],
                     ),
@@ -648,15 +1015,15 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.directions, color: Colors.white, size: 20),
+                        const Icon(Icons.directions_walk, color: Colors.white, size: 20),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Directions',
-                                style: const TextStyle(
+                              const Text(
+                                'Walking Directions',
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
@@ -695,6 +1062,14 @@ class _MapScreenState extends State<MapScreen> {
                       ],
                     ),
                   ),
+                ),
+              // Directions Panel - only show when requested
+              if (_showDirectionsPanel && _currentDirectionFrom == null && _currentDirectionTo == null && _mapReady)
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  right: 16,
+                  child: _buildDirectionsPanel(),
                 ),
               // AQI indicator (like in the original image) - moved down when directions active
               if (_mapReady && _currentDirectionFrom == null)

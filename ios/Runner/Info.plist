@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -22,26 +24,10 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	
-	<!-- Google Maps API Key for iOS -->
 	<key>GMSApiKey</key>
 	<string>$(GOOGLE_MAPS_API_KEY)</string>
-	
-	<!-- Location Permissions -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs location access to provide personalized ride recommendations and track your position in Universal Orlando parks.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs location access to provide personalized ride recommendations and track your position in Universal Orlando parks.</string>
-	
-	<!-- Camera and Photo Library (for future features) -->
-	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to scan QR codes and take photos of your Universal Orlando experience.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs photo library access to save and share your Universal Orlando memories.</string>
-	
-	<!-- Network Usage -->
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -60,7 +46,18 @@
 			</dict>
 		</dict>
 	</dict>
-	
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to scan QR codes and take photos of your Universal Orlando experience.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs location access to provide personalized ride recommendations and track your position in Universal Orlando parks.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs location access to provide personalized ride recommendations and track your position in Universal Orlando parks.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to save and share your Universal Orlando memories.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>This app uses tracking to provide personalized ride recommendations based on your park activity.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -78,13 +75,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	
-	<!-- iOS 14+ Privacy Requirements -->
-	<key>NSUserTrackingUsageDescription</key>
-	<string>This app uses tracking to provide personalized ride recommendations based on your park activity.</string>
 </dict>
 </plist>

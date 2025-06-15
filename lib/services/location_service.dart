@@ -8,6 +8,7 @@ class LocationService extends ChangeNotifier {
   PermissionStatus? _permissionStatus;
   LocationData? _locationData;
   Stream<LocationData>? _locationStream;
+  bool _isManualLocationSet = false; // Track if manual location is active
 
   String? _currentPark;
   final List<String> _visitedRides = [];
@@ -104,8 +105,13 @@ class LocationService extends ChangeNotifier {
       // Set up location stream
       _locationStream = _location.onLocationChanged;
       _locationStream?.listen((LocationData newLocationData) {
-        debugPrint("Location update received: ${newLocationData.latitude}, ${newLocationData.longitude}");
-        _updateLocation(newLocationData);
+        // Don't override manual location with GPS updates
+        if (!_isManualLocationSet) {
+          debugPrint("Location update received: ${newLocationData.latitude}, ${newLocationData.longitude}");
+          _updateLocation(newLocationData);
+        } else {
+          debugPrint("Ignoring GPS update - manual location is active");
+        }
       }, onError: (error) {
         debugPrint("Location stream error: $error");
       });
@@ -139,55 +145,109 @@ class LocationService extends ChangeNotifier {
 
   // Manual location setter for testing/simulator
   void setManualLocation(double latitude, double longitude) {
+    _isManualLocationSet = true; // Flag that we're using manual location
     final locationData = LocationData.fromMap({
       'latitude': latitude,
       'longitude': longitude,
       'accuracy': 5.0,
       'timestamp': DateTime.now().millisecondsSinceEpoch.toDouble(),
     });
-    debugPrint("Setting manual location: $latitude, $longitude");
+    debugPrint("🔧 Setting manual location: $latitude, $longitude");
     _updateLocation(locationData);
   }
 
+  // Method to reset to GPS location
+  void resetToGPSLocation() {
+    _isManualLocationSet = false;
+    debugPrint("🔧 Resetting to GPS location");
+    refreshLocation();
+  }
+
   void _detectVisitedRide(LatLng currentLatLng) {
+    String? nearestRide;
+    double nearestDistance = double.infinity;
+    
+    debugPrint("🔍 Checking rides near location: ${currentLatLng.latitude}, ${currentLatLng.longitude}");
+    
+    // Find the nearest ride first and log distances to nearby rides
+    List<MapEntry<String, double>> nearbyRides = [];
     for (var entry in rideCoordinates.entries) {
       final String rideName = entry.key;
       final LatLng rideLatLng = entry.value;
       final double distance = calculateDistance(currentLatLng, rideLatLng);
-
-      if (distance <= RIDE_PROXIMITY_THRESHOLD_METERS) {
-        if (_lastVisitedRide != rideName) {
-          _lastVisitedRide = rideName;
-          if (!_visitedRides.contains(rideName)) {
-            _visitedRides.add(rideName);
-          }
-          debugPrint("User is at or just visited: $rideName");
-          notifyListeners(); 
-        }
-        return; // Found the closest ride, no need to check others if already within threshold
+      
+      // Log rides within 100 meters for debugging
+      if (distance <= 100.0) {
+        nearbyRides.add(MapEntry(rideName, distance));
       }
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestRide = rideName;
+      }
+    }
+    
+    // Sort and log nearby rides
+    nearbyRides.sort((a, b) => a.value.compareTo(b.value));
+    debugPrint("🎢 Nearby rides (within 100m):");
+    for (var ride in nearbyRides.take(5)) {
+      debugPrint("   ${ride.key}: ${ride.value.toStringAsFixed(1)}m");
+    }
+    
+    debugPrint("🎯 Nearest ride: $nearestRide (${nearestDistance.toStringAsFixed(1)}m away)");
+
+    // If we found a nearest ride and it's within threshold, mark as visited
+    if (nearestRide != null && nearestDistance <= RIDE_PROXIMITY_THRESHOLD_METERS) {
+      if (_lastVisitedRide != nearestRide) {
+        _lastVisitedRide = nearestRide;
+        if (!_visitedRides.contains(nearestRide)) {
+          _visitedRides.add(nearestRide);
+          debugPrint("🎢 NEW RIDE VISITED: $nearestRide (${nearestDistance.toStringAsFixed(1)}m away)");
+        } else {
+          debugPrint("🎢 RETURNED TO: $nearestRide (${nearestDistance.toStringAsFixed(1)}m away)");
+        }
+        notifyListeners(); 
+      }
+    } else {
+      debugPrint("🚫 No rides within ${RIDE_PROXIMITY_THRESHOLD_METERS}m threshold");
     }
   }
 
   void addVisitedRide(String rideName) {
     if (!_visitedRides.contains(rideName)) {
       _visitedRides.add(rideName);
-      _lastVisitedRide = rideName;
-      notifyListeners();
+      debugPrint("🎢 MANUALLY ADDED VISITED RIDE: $rideName");
     }
+    _lastVisitedRide = rideName;
+    notifyListeners();
   }
 
+  // Method to mark a ride as visited when user gets directions to it
+  void markRideAsTarget(String rideName) {
+    debugPrint("🎯 TARGET RIDE SET: $rideName (will be marked as visited when reached)");
+    // This can be used to set up tracking for a specific ride
+    // The actual visit will be detected by GPS proximity
+  }
+
+  // Method to check if user has been to a ride today
+  bool hasVisitedRide(String rideName) {
+    return _visitedRides.contains(rideName);
+  }
+
+  // Get rides visited today
+  List<String> get todaysVisitedRides => List.unmodifiable(_visitedRides);
+
   String? _detectPark(LatLng location) {
-    // Islands of Adventure bounds (rough)
-    if (location.latitude >= 28.468 && location.latitude <= 28.475 &&
-        location.longitude >= -81.475 && location.longitude <= -81.467) {
-      return 'Islands of Adventure';
+    // Universal Studios Florida bounds (expanded to include all rides)
+    if (location.latitude >= 28.473 && location.latitude <= 28.481 &&
+        location.longitude >= -81.472 && location.longitude <= -81.465) {
+      return 'Universal Studios';
     }
     
-    // Universal Studios Florida bounds (rough)
-    if (location.latitude >= 28.473 && location.latitude <= 28.480 &&
-        location.longitude >= -81.471 && location.longitude <= -81.465) {
-      return 'Universal Studios';
+    // Islands of Adventure bounds (expanded and adjusted to avoid overlap)
+    if (location.latitude >= 28.468 && location.latitude <= 28.473 &&
+        location.longitude >= -81.475 && location.longitude <= -81.467) {
+      return 'Islands of Adventure';
     }
     
     // Epic Universe bounds (very approximate)
@@ -203,7 +263,15 @@ class LocationService extends ChangeNotifier {
     _visitedRides.clear();
     _locationHistory.clear();
     _lastVisitedRide = null;
+    debugPrint("🧹 Cleared location history and visited rides");
     notifyListeners();
+  }
+
+  // Clear manual location and return to GPS
+  void clearManualLocation() {
+    _isManualLocationSet = false;
+    debugPrint("🔧 Cleared manual location - returning to GPS");
+    refreshLocation();
   }
 
   double calculateDistance(LatLng from, LatLng to) {

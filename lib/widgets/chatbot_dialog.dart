@@ -21,17 +21,55 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
   final Random _random = Random();
   bool _isLoading = false;
 
-  // Track recommended rides in this chat session
-  final Set<String> _recommendedRides = {};
+  // Track only new recommendations in this chat session (not persistent)
+  final Set<String> _sessionRecommendations = {};
   final List<String> _conversationHistory = [];
 
   // List of popular rides to use as a fallback if no location/last ride is available
   final List<String> _fallbackPopularRides = [
-    "The Amazing Adventures of Spider-Man®",
-    "Harry Potter and the Forbidden Journey™",
-    "Jurassic World VelociCoaster",
-    "The Incredible Hulk Coaster®",
+    'Harry Potter and the Forbidden Journey™',
+    'Jurassic World VelociCoaster',
+    'The Incredible Hulk Coaster®',
+    'Revenge of the Mummy™',
+    'TRANSFORMERS™: The Ride-3D',
   ];
+
+  // Park-specific ride lists for fallback recommendations
+  final Map<String, List<String>> _parkRides = {
+    'Islands of Adventure': [
+      'Harry Potter and the Forbidden Journey™',
+      'Flight of the Hippogriff™',
+      'Hagrid\'s Magical Creatures Motorbike Adventure™',
+      'Jurassic World VelociCoaster',
+      'The Incredible Hulk Coaster®',
+      'The Amazing Adventures of Spider-Man®',
+      'Skull Island: Reign of Kong™',
+      'Jurassic Park River Adventure™',
+      'Pteranodon Flyers™',
+      'Doctor Doom\'s Fearfall®',
+      'Storm Force Accelatron®',
+      'Caro-Seuss-el™',
+      'One Fish, Two Fish, Red Fish, Blue Fish™',
+      'The Cat In The Hat™',
+      'The High in the Sky Seuss Trolley Train Ride!™',
+      'Dudley Do-Right\'s Ripsaw Falls®',
+      'Popeye & Bluto\'s Bilge-Rat Barges®',
+    ],
+    'Universal Studios': [
+      'Revenge of the Mummy™',
+      'Hollywood Rip Ride Rockit™',
+      'E.T. Adventure™',
+      'Despicable Me Minion Mayhem™',
+      'Illumination\'s Villain-Con Minion Blast',
+      'Race Through New York Starring Jimmy Fallon™',
+      'TRANSFORMERS™: The Ride-3D',
+      'Fast & Furious - Supercharged™',
+      'Harry Potter and the Escape from Gringotts™',
+      'Kang & Kodos\' Twirl \'n\' Hurl',
+      'MEN IN BLACK™ Alien Attack!™',
+      'The Simpsons Ride™',
+    ],
+  };
 
   @override
   void initState() {
@@ -111,21 +149,18 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
       String? lastRide = locationService.lastVisitedRide;
       String currentPark = locationService.currentPark ?? "Islands of Adventure";
 
+      // Get actually visited rides from location service
+      final visitedRides = locationService.visitedRides;
+
       // If we've recommended many rides, suggest taking a break
-      if (_recommendedRides.length >= 5) {
-        return "🎢 Wow, you're really making the most of your day! You've gotten ${_recommendedRides.length} recommendations so far.\n\n"
+      if (_sessionRecommendations.length >= 5) {
+        return "🎢 Wow, you're really making the most of your day! You've gotten ${_sessionRecommendations.length} recommendations so far.\n\n"
                "Maybe it's time for a break? I can suggest:\n"
                "🍕 Food options\n"
                "🛍️ Gift shops\n" 
                "💧 Water fountains or rest areas\n\n"
                "Or if you want another ride recommendation, just ask! 😊";
       }
-
-      // Don't use recommended rides as the "last ride" - only use actual visited rides
-      // This prevents the ping-pong effect where recommendations become starting points
-      // if (lastRide == null && _recommendedRides.isNotEmpty) {
-      //   lastRide = _recommendedRides.last;
-      // }
 
       if (lastRide == null) {
         lastRide = _fallbackPopularRides[_random.nextInt(_fallbackPopularRides.length)];
@@ -135,7 +170,7 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
           isSystemMessage: true,
           timestamp: DateTime.now(),
         ));
-      } else {
+      
          _messages.add(ChatMessage(
           text: "(Okay, I see your last ride was $lastRide in $currentPark. Let's find something new!)",
           isBot: true,
@@ -144,35 +179,60 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
         ));
       }
       
-      // IMPORTANT: Add the starting/last ride to the exclusion list if it's not already there
-      // This ensures we don't recommend the ride they just came from
-      if (lastRide != null && !_recommendedRides.contains(lastRide)) {
-        _recommendedRides.add(lastRide);
+      // Create exclusion list: visited rides + session recommendations + last ride
+      Set<String> excludeRides = Set<String>.from(visitedRides);
+      excludeRides.addAll(_sessionRecommendations);
+      if (lastRide != null) {
+        excludeRides.add(lastRide);
       }
       
-      // Get recommendation with excluded rides (now includes the starting ride)
+      // Try to get recommendation from service first
       final recommendation = await recommendationService.getRecommendation(
         lastRide: lastRide,
         park: currentPark,
-        excludeRides: _recommendedRides.toList(),
+        excludeRides: excludeRides.toList(),
       );
       
+      String? recommendedRide;
+      int waitTime = 15; // Default wait time
+      int walkingMinutes = 5; // Default walking time
+      
       if (recommendation != null) {
+        recommendedRide = recommendation.rideName;
+        waitTime = recommendation.waitTime;
+        walkingMinutes = recommendation.walkingMinutes;
+      } else {
+        // Fallback: Get park-specific recommendation
+        recommendedRide = _getParkSpecificRecommendation(currentPark, excludeRides.toList());
+        if (recommendedRide == null) {
+          return "🎢 Looks like you've experienced most of the rides in $currentPark! 🎉\n\n"
+                 "You could:\n"
+                 "• Visit the other park for new adventures\n"
+                 "• Re-ride your favorites\n"
+                 "• Explore dining and shopping\n"
+                 "• Take a break and enjoy the atmosphere!\n\n"
+                 "What sounds good to you?";
+        }
+      }
+      
+      if (recommendedRide != null) {
         // Add the new recommendation to our session tracking
-        _recommendedRides.add(recommendation.rideName);
+        _sessionRecommendations.add(recommendedRide);
         
         String sessionInfo = "";
-        if (_recommendedRides.length > 2) {
-          // Show previous rides but exclude the starting ride from the "recommendations" count
-          List<String> actualRecommendations = _recommendedRides.where((ride) => ride != lastRide).toList();
-          sessionInfo = "\n\n📋 Today's recommendations: ${actualRecommendations.length}\n"
-                       "Previous: ${actualRecommendations.reversed.skip(1).take(2).join(', ')}${actualRecommendations.length > 3 ? '...' : ''}";
+        if (visitedRides.isNotEmpty || _sessionRecommendations.length > 1) {
+          // Show comprehensive session info
+          List<String> todaysRecommendations = _sessionRecommendations.toList();
+          String visitedInfo = visitedRides.isNotEmpty ? "\n🏁 Visited today: ${visitedRides.length} ride${visitedRides.length == 1 ? '' : 's'}" : "";
+          sessionInfo = "\n\n📋 Session summary:"
+                       "$visitedInfo\n"
+                       "💡 Today's recommendations: ${todaysRecommendations.length}";
         }
         
-        final responseText = "🎢 Perfect! Based on your last ride ($lastRide) in $currentPark, I recommend:\n\n"
-               "**${recommendation.rideName}**\n"
-               "⏱️ Wait time: ${recommendation.waitTime} minutes\n"
-               "🚶 Walking time: ~${recommendation.walkingMinutes} minute${recommendation.walkingMinutes == 1 ? '' : 's'}\n\n"
+        final responseText = "🎢 Perfect! Based on your location in $currentPark, I recommend:\n\n"
+               "**$recommendedRide**\n"
+               "⏱️ Wait time: $waitTime minutes\n"
+               "🚶 Walking time: ~$walkingMinutes minute${walkingMinutes == 1 ? '' : 's'}\n\n"
                "This looks like a great choice right now! Have fun! 🎉$sessionInfo";
         
         // Add the recommendation message with direction data
@@ -182,8 +242,8 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
             isBot: true,
             timestamp: DateTime.now(),
             fromRide: lastRide,
-            toRide: recommendation.rideName,
-            recommendedRideName: recommendation.rideName,
+            toRide: recommendedRide,
+            recommendedRideName: recommendedRide,
           ));
           _isLoading = false;
         });
@@ -196,42 +256,73 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
       final visitedRides = locationService.visitedRides;
       final lastRide = locationService.lastVisitedRide;
       
-      if (visitedRides.isEmpty && _recommendedRides.isEmpty) {
+      if (visitedRides.isEmpty && _sessionRecommendations.isEmpty) {
         return "🎢 You haven't visited any rides yet today! Ready to start your adventure? Just ask me for a ride recommendation! 🎉";
       }
       
       String response = "📋 **Your Universal Orlando Activity Today:**\n\n";
       
-      if (lastRide != null && _recommendedRides.contains(lastRide)) {
-        response += "🎯 **Starting Point:** $lastRide\n\n";
-      }
-      
-      if (_recommendedRides.isNotEmpty) {
-        // Filter out the starting ride from recommendations display
-        List<String> actualRecommendations = _recommendedRides.where((ride) => ride != lastRide).toList();
-        if (actualRecommendations.isNotEmpty) {
-          response += "🎯 **Rides I've recommended** (${actualRecommendations.length}):\n";
-          for (int i = 0; i < actualRecommendations.length; i++) {
-            response += "${i + 1}. ${actualRecommendations[i]}\n";
-          }
-        }
-      }
-      
       if (visitedRides.isNotEmpty) {
-        response += "\n🏁 **Rides you've actually visited** (${visitedRides.length}):\n";
+        response += "🏁 **Rides you've actually visited** (${visitedRides.length}):\n";
         for (int i = 0; i < visitedRides.length; i++) {
           response += "${i + 1}. ${visitedRides[i]}\n";
         }
       }
       
+      if (_sessionRecommendations.isNotEmpty) {
+        // Filter out visited rides from recommendations display
+        List<String> pendingRecommendations = _sessionRecommendations.where((ride) => !visitedRides.contains(ride)).toList();
+        if (pendingRecommendations.isNotEmpty) {
+          response += "\n💡 **Pending recommendations** (${pendingRecommendations.length}):\n";
+          for (int i = 0; i < pendingRecommendations.length; i++) {
+            response += "${i + 1}. ${pendingRecommendations[i]}\n";
+          }
+        }
+      }
+      
       response += "\nWhat would you like to do next? 🎢";
       return response;
-    } else if (message.contains('reset') || message.contains('clear') || message.contains('start over')) {
-      _recommendedRides.clear();
+    } else if (message.contains('clear') || message.contains('reset')) {
+      _sessionRecommendations.clear();
       _conversationHistory.clear();
-      locationService.clearHistory();
-      return "🔄 **Fresh Start!** I've cleared your session history.\n\n"
-             "Ready to begin a new adventure? Ask me for a ride recommendation! 🎢✨";
+      return "🔄 **Session Reset!** I've cleared this chat session's recommendations.\n\n"
+             "Your actual visited rides (from GPS tracking) are still remembered.\n"
+             "Ready to get some fresh recommendations? 🎢✨";
+    } else if (message.contains('debug') || message.contains('status')) {
+      final visitedRides = locationService.visitedRides;
+      final lastRide = locationService.lastVisitedRide;
+      final currentPark = locationService.currentPark;
+      final currentLoc = locationService.currentLocationLatLng;
+      
+      String debugInfo = "🔧 **Debug Information:**\n\n";
+      debugInfo += "📍 **Location:**\n";
+      if (currentLoc != null) {
+        debugInfo += "• Current: ${currentLoc.latitude.toStringAsFixed(5)}, ${currentLoc.longitude.toStringAsFixed(5)}\n";
+      } else {
+        debugInfo += "• Current: Location not available\n";
+      }
+      debugInfo += "• Park: ${currentPark ?? 'Unknown'}\n";
+      debugInfo += "• Last visited: ${lastRide ?? 'None'}\n\n";
+      
+      debugInfo += "🎢 **Visited Rides:** ${visitedRides.length}\n";
+      if (visitedRides.isNotEmpty) {
+        for (int i = 0; i < visitedRides.length; i++) {
+          debugInfo += "${i + 1}. ${visitedRides[i]}\n";
+        }
+      } else {
+        debugInfo += "None yet\n";
+      }
+      
+      debugInfo += "\n💡 **Session Recommendations:** ${_sessionRecommendations.length}\n";
+      if (_sessionRecommendations.isNotEmpty) {
+        for (int i = 0; i < _sessionRecommendations.length; i++) {
+          debugInfo += "${i + 1}. ${_sessionRecommendations.toList()[i]}\n";
+        }
+      } else {
+        debugInfo += "None yet\n";
+      }
+      
+      return debugInfo;
     } else if (message.contains('food') || message.contains('eat') || message.contains('restaurant')) {
       String parkContext = locationService.currentPark ?? "the park";
       return "🍕 Great question! Looking for food in $parkContext? Here are some popular dining options overall:\n\n"
@@ -517,8 +608,22 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
     );
   }
 
+  String? _getParkSpecificRecommendation(String park, List<String> excludeRides) {
+    final parkRides = _parkRides[park] ?? [];
+    final availableRides = parkRides.where((ride) => !excludeRides.contains(ride)).toList();
+    
+    if (availableRides.isEmpty) {
+      return null; // No available rides in this park
+    }
+    
+    // Return a random available ride from the current park
+    return availableRides[_random.nextInt(availableRides.length)];
+  }
+
   @override
   void dispose() {
+    // Clear session-specific recommendations when dialog closes
+    _sessionRecommendations.clear();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();

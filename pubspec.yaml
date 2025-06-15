@@ -12,23 +12,24 @@ dependencies:
     sdk: flutter
   
   # Google Maps
-  google_maps_flutter: ^2.5.0
+  google_maps_flutter: ^2.9.0
   
   # HTTP client
-  http: ^1.1.0
+  http: ^1.2.2
   
   # Location services
-  location: ^5.0.3
+  location: ^7.0.0
   
   # State management
-  provider: ^6.1.1
+  provider: ^6.1.2
   
   # JSON handling
   json_annotation: ^4.8.1
   
   # UI components
-  cupertino_icons: ^1.0.2
+  cupertino_icons: ^1.0.8
   flutter_animate: ^4.2.0
+  flutter_polyline_points: ^2.1.0
 
 dev_dependencies:
   flutter_test:
