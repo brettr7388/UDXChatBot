@@ -30,6 +30,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_animate: ^4.2.0
   flutter_polyline_points: ^2.1.0
+  
+  # Environment variables
+  flutter_dotenv: ^5.1.0
 
 dev_dependencies:
   flutter_test:
@@ -43,4 +46,5 @@ flutter:
   
   assets:
     - assets/images/
-    - assets/icons/ 
+    - assets/icons/
+    - .env 

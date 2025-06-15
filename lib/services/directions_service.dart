@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import '../constants/api_keys.dart';
 
 class DirectionsService {
-  static const String _apiKey = ApiKeys.googleMapsApiKey;
   static final PolylinePoints _polylinePoints = PolylinePoints();
 
   /// Calculate walking route between two points using Google Directions API
@@ -16,9 +15,11 @@ class DirectionsService {
     required LatLng destination,
   }) async {
     try {
+      final String apiKey = ApiKeys.googleMapsApiKey; // Get API key dynamically
+      
       // Use flutter_polyline_points to get the route
       PolylineResult result = await _polylinePoints.getRouteBetweenCoordinates(
-        googleApiKey: _apiKey,
+        googleApiKey: apiKey,
         request: PolylineRequest(
           origin: PointLatLng(origin.latitude, origin.longitude),
           destination: PointLatLng(destination.latitude, destination.longitude),
@@ -56,12 +57,14 @@ class DirectionsService {
   /// Get detailed route information from Google Directions API
   static Future<RouteInfo?> _getRouteInfo(LatLng origin, LatLng destination) async {
     try {
+      final String apiKey = ApiKeys.googleMapsApiKey; // Get API key dynamically
+      
       final String url = 'https://maps.googleapis.com/maps/api/directions/json?'
           'origin=${origin.latitude},${origin.longitude}&'
           'destination=${destination.latitude},${destination.longitude}&'
           'mode=walking&'
           'avoid=highways|tolls|ferries&'
-          'key=$_apiKey';
+          'key=$apiKey';
 
       final response = await http.get(Uri.parse(url));
 

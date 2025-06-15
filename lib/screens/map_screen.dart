@@ -744,25 +744,29 @@ class _MapScreenState extends State<MapScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12)),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 10)),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
           value: value,
           decoration: const InputDecoration(
             border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             isDense: true,
           ),
-          hint: const Text('Select ride', style: TextStyle(fontSize: 11)),
+          hint: const Text('Select', style: TextStyle(fontSize: 9)),
           isExpanded: true,
+          style: const TextStyle(fontSize: 8, color: Colors.black),
           items: rideCoordinates.keys.map((String rideName) {
             return DropdownMenuItem<String>(
               value: rideName,
-              child: Text(
-                rideName,
-                style: const TextStyle(fontSize: 9),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
+              child: SizedBox(
+                width: double.infinity,
+                child: Text(
+                  rideName,
+                  style: const TextStyle(fontSize: 8),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
               ),
             );
           }).toList(),
