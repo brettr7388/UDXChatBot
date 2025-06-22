@@ -64,7 +64,7 @@ class LocationService extends ChangeNotifier {
     // "Harry Potter and the Battle at the Ministry™": LatLng(28.473246, -81.472388),
   };
 
-  static const double RIDE_PROXIMITY_THRESHOLD_METERS = 30.0; // User must be within 30 meters
+  static const double RIDE_PROXIMITY_THRESHOLD_METERS = 100.0; // Increased from 30m to 100m for better detection
 
   LocationData? get currentLocationData => _locationData;
   LatLng? get currentLocationLatLng => _locationData != null ? LatLng(_locationData!.latitude!, _locationData!.longitude!) : null;
@@ -79,55 +79,93 @@ class LocationService extends ChangeNotifier {
 
   Future<void> _initLocationStream() async {
     try {
+      // Check if location services are enabled
       bool serviceEnabled = await _location.serviceEnabled();
       if (!serviceEnabled) {
+        debugPrint("Location service not enabled, requesting...");
         serviceEnabled = await _location.requestService();
         if (!serviceEnabled) {
-          debugPrint("Location service not enabled");
+          debugPrint("❌ Location service not enabled by user");
           return;
         }
       }
 
+      // Check and request permissions
       _permissionStatus = await _location.hasPermission();
+      debugPrint("Current permission status: $_permissionStatus");
+      
       if (_permissionStatus == PermissionStatus.denied) {
+        debugPrint("Location permission denied, requesting...");
         _permissionStatus = await _location.requestPermission();
         if (_permissionStatus != PermissionStatus.granted) {
-          debugPrint("Location permission not granted: $_permissionStatus");
+          debugPrint("❌ Location permission not granted: $_permissionStatus");
           return;
         }
       }
 
-      debugPrint("Location permission granted, starting location stream");
+      debugPrint("✅ Location permission granted, configuring location settings");
+      
+      // Configure location settings for better accuracy
+      await _location.changeSettings(
+        accuracy: LocationAccuracy.high,
+        interval: 5000, // Update every 5 seconds
+        distanceFilter: 10, // Only update if moved 10 meters
+      );
       
       // Get current location immediately
       await refreshLocation();
       
-      // Set up location stream
+      // Set up location stream with error handling
       _locationStream = _location.onLocationChanged;
-      _locationStream?.listen((LocationData newLocationData) {
-        // Don't override manual location with GPS updates
-        if (!_isManualLocationSet) {
-          debugPrint("Location update received: ${newLocationData.latitude}, ${newLocationData.longitude}");
-          _updateLocation(newLocationData);
-        } else {
-          debugPrint("Ignoring GPS update - manual location is active");
-        }
-      }, onError: (error) {
-        debugPrint("Location stream error: $error");
-      });
+      _locationStream?.listen(
+        (LocationData newLocationData) {
+          // Don't override manual location with GPS updates
+          if (!_isManualLocationSet) {
+            debugPrint("📍 Location update: ${newLocationData.latitude}, ${newLocationData.longitude} (accuracy: ${newLocationData.accuracy}m)");
+            _updateLocation(newLocationData);
+          } else {
+            debugPrint("🔧 Ignoring GPS update - manual location is active");
+          }
+        }, 
+        onError: (error) {
+          debugPrint("❌ Location stream error: $error");
+          // Try to restart location services after error
+          Future.delayed(const Duration(seconds: 10), () {
+            debugPrint("🔄 Attempting to restart location services...");
+            refreshLocation();
+          });
+        },
+        cancelOnError: false, // Don't cancel the stream on error
+      );
     } catch (e) {
-      debugPrint("Error initializing location stream: $e");
+      debugPrint("❌ Error initializing location stream: $e");
     }
   }
 
   Future<void> refreshLocation() async {
     try {
-      debugPrint("Attempting to get current location...");
-      LocationData newLocationData = await _location.getLocation();
-      debugPrint("Got location: ${newLocationData.latitude}, ${newLocationData.longitude}");
-      _updateLocation(newLocationData);
+      debugPrint("🔄 Attempting to get current location...");
+      
+      // Set a timeout for location requests
+      LocationData newLocationData = await _location.getLocation().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          debugPrint("⏰ Location request timed out");
+          throw Exception("Location request timed out");
+        },
+      );
+      
+      debugPrint("✅ Got location: ${newLocationData.latitude}, ${newLocationData.longitude} (accuracy: ${newLocationData.accuracy}m)");
+      
+      // Only use location if accuracy is reasonable (less than 100 meters)
+      if (newLocationData.accuracy != null && newLocationData.accuracy! < 100) {
+        _updateLocation(newLocationData);
+      } else {
+        debugPrint("⚠️ Location accuracy too poor (${newLocationData.accuracy}m), ignoring update");
+      }
     } catch (e) {
-      debugPrint("Error getting location: $e");
+      debugPrint("❌ Error getting location: $e");
+      // Don't throw the error, just log it so the app continues working
     }
   }
 
@@ -224,7 +262,7 @@ class LocationService extends ChangeNotifier {
 
   // Method to mark a ride as visited when user gets directions to it
   void markRideAsTarget(String rideName) {
-    debugPrint("🎯 TARGET RIDE SET: $rideName (will be marked as visited when reached)");
+    debugPrint("�� TARGET RIDE SET: $rideName (will be marked as visited when reached)");
     // This can be used to set up tracking for a specific ride
     // The actual visit will be detected by GPS proximity
   }

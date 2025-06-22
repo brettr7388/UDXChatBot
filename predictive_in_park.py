@@ -18,7 +18,7 @@
 # STEPS FOR CURSOR AGENT:
 # 1. Ensure Python 3.x is installed.
 # 2. Install dependencies:
-#       pip install requests flask python-dotenv
+#       pip install requests flask python-dotenv flask-cors
 # 3. Save this file as `predictive_in_park.py`.
 # 4. Run it locally:
 #       python predictive_in_park.py
@@ -41,19 +41,34 @@
 import os
 import requests
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from math import radians, cos, sin, sqrt, atan2
 import random
 from dotenv import load_dotenv
+import socket
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for mobile app access
 
 # Configuration from environment variables
-FLASK_HOST = os.getenv('FLASK_HOST', '127.0.0.1')
-FLASK_PORT = int(os.getenv('FLASK_PORT', 5000))
+FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')  # Changed to 0.0.0.0 to accept connections from any IP
+FLASK_PORT = int(os.getenv('FLASK_PORT', 5001))  # Changed default from 5000 to 5001 to avoid macOS AirPlay conflict
 FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+
+# Get local IP address for mobile connectivity
+def get_local_ip():
+    try:
+        # Connect to a remote address to determine local IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return "127.0.0.1"
 
 # ────────────────────────────────────────────────────────────────────────────────
 # 1) PARK IDs FOR UNIVERSAL ORLANDO (Queue-Times API)
@@ -317,4 +332,15 @@ def debug_endpoint():
 # ────────────────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
+    local_ip = get_local_ip()
+    print("🎢 Universal Orlando Recommendation API Starting...")
+    print("="*60)
+    print(f"📱 For mobile devices, use: http://{local_ip}:{FLASK_PORT}")
+    print(f"💻 For local testing, use: http://127.0.0.1:{FLASK_PORT}")
+    print("="*60)
+    print("📡 Available endpoints:")
+    print(f"   POST /recommend - Get ride recommendations")
+    print(f"   GET  /debug     - View wait times and available rides")
+    print("="*60)
+    
     app.run(debug=FLASK_DEBUG, port=FLASK_PORT, host=FLASK_HOST) 

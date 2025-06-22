@@ -24,6 +24,13 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
   // Track only new recommendations in this chat session (not persistent)
   final Set<String> _sessionRecommendations = {};
   final List<String> _conversationHistory = [];
+  
+  // Track the last recommendation context for refresh functionality
+  String? _lastRecommendationContext;
+  String? _lastFromRide;
+  String? _lastPark;
+  List<String>? _lastExcludeRides;
+  String? _lastRecommendedRide; // Track the last recommended ride for exclusion on refresh
 
   // List of popular rides to use as a fallback if no location/last ride is available
   final List<String> _fallbackPopularRides = [
@@ -134,6 +141,102 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
   void _sendQuickMessage(String message) {
     _messageController.text = message;
     _sendMessage();
+  }
+
+  // Refresh the last recommendation with an alternative
+  Future<void> _refreshLastRecommendation() async {
+    if (_lastFromRide == null || _lastPark == null || _lastExcludeRides == null) {
+      return; // No previous recommendation to refresh
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final recommendationService = context.read<RecommendationService>();
+      
+      // Create updated exclusion list that includes the last recommended ride
+      Set<String> refreshExcludeRides = Set<String>.from(_lastExcludeRides!);
+      if (_lastRecommendedRide != null) {
+        refreshExcludeRides.add(_lastRecommendedRide!);
+      }
+      
+      // Get alternative recommendation
+      final recommendation = await recommendationService.getRecommendation(
+        lastRide: _lastFromRide!,
+        park: _lastPark!,
+        excludeRides: refreshExcludeRides.toList(),
+      );
+      
+      String? recommendedRide;
+      int waitTime = 15;
+      int walkingMinutes = 5;
+      
+      if (recommendation != null) {
+        recommendedRide = recommendation.rideName;
+        waitTime = recommendation.waitTime;
+        walkingMinutes = recommendation.walkingMinutes;
+      } else {
+        // Fallback: Get park-specific recommendation excluding the previous one
+        recommendedRide = _getParkSpecificRecommendation(_lastPark!, refreshExcludeRides.toList());
+      }
+      
+      if (recommendedRide != null) {
+        // Remove the old recommendation from session tracking and add the new one
+        if (_lastRecommendedRide != null) {
+          _sessionRecommendations.remove(_lastRecommendedRide!);
+        }
+        _sessionRecommendations.add(recommendedRide);
+        
+        final responseText = "🔄 **Alternative Recommendation** for $_lastPark!\n\n"
+               "**$recommendedRide**\n"
+               "⏱️ Wait time: $waitTime minutes\n"
+               "🚶 Walking time: ~$walkingMinutes minute${walkingMinutes == 1 ? '' : 's'}\n\n"
+               "How about this one instead? 🎢✨";
+        
+        setState(() {
+          _messages.add(ChatMessage(
+            text: responseText,
+            isBot: true,
+            timestamp: DateTime.now(),
+            fromRide: _lastFromRide,
+            toRide: recommendedRide,
+            recommendedRideName: recommendedRide,
+          ));
+          _isLoading = false;
+        });
+        
+        // Update the context for potential future refreshes
+        _lastRecommendationContext = responseText;
+        _lastRecommendedRide = recommendedRide;
+        _lastExcludeRides = refreshExcludeRides.toList();
+        
+      } else {
+        setState(() {
+          _messages.add(ChatMessage(
+            text: "🎢 I've run out of fresh recommendations for $_lastPark! You might want to:\n\n"
+                   "• Try the other park for new adventures\n"
+                   "• Re-visit some favorites\n"
+                   "• Take a break and grab some food! 🍕",
+            isBot: true,
+            timestamp: DateTime.now(),
+          ));
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _messages.add(ChatMessage(
+          text: "Sorry, I had trouble getting an alternative recommendation. Please try asking for a new recommendation! 🔄",
+          isBot: true,
+          timestamp: DateTime.now(),
+        ));
+        _isLoading = false;
+      });
+    }
+    
+    _scrollToBottom();
   }
 
   Future<String> _generateBotResponse(String userMessage) async {
@@ -247,6 +350,13 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
           ));
           _isLoading = false;
         });
+        
+        // Update the last recommendation context
+        _lastRecommendationContext = responseText;
+        _lastFromRide = lastRide;
+        _lastPark = currentPark;
+        _lastExcludeRides = excludeRides.toList();
+        _lastRecommendedRide = recommendedRide;
         
         return ""; // Return empty since we're handling the message creation manually
       } else {
@@ -531,29 +641,51 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
               ),
             ),
           ),
-          // Add directions button for recommendation messages
-          if (message.isBot && 
-              message.fromRide != null && 
-              message.toRide != null &&
-              widget.onDirectionsRequested != null)
+          // Add refresh and directions buttons for recommendation messages
+          if (message.isBot && message.recommendedRideName != null)
             Container(
               margin: const EdgeInsets.only(bottom: 12, left: 12),
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // Close the dialog and request directions
-                  Navigator.of(context).pop();
-                  widget.onDirectionsRequested!(message.fromRide!, message.toRide!);
-                },
-                icon: const Icon(Icons.directions, size: 16),
-                label: const Text('Get Directions'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1976D2),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  textStyle: const TextStyle(fontSize: 12),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Refresh button
+                  ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _refreshLastRecommendation,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Different Ride'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      textStyle: const TextStyle(fontSize: 12),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  // Directions button (if callback is provided)
+                  if (message.fromRide != null && 
+                      message.toRide != null &&
+                      widget.onDirectionsRequested != null) ...[
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // Close the dialog and request directions
+                        Navigator.of(context).pop();
+                        widget.onDirectionsRequested!(message.fromRide!, message.toRide!);
+                      },
+                      icon: const Icon(Icons.directions, size: 16),
+                      label: const Text('Get Directions'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1976D2),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        textStyle: const TextStyle(fontSize: 12),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
         ],

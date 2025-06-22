@@ -96,7 +96,7 @@ python3 setup_env.py
 ```bash
 python3 predictive_in_park.py
 ```
-The API will be available at `http://127.0.0.1:5000`
+The API will be available at `http://127.0.0.1:5001`
 
 ### 2. Launch Flutter App
 ```bash
@@ -137,8 +137,8 @@ The app uses the following environment variables (configured in `.env`):
 GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 
 # Optional (with defaults)
-FLASK_HOST=127.0.0.1
-FLASK_PORT=5000
+FLASK_HOST=0.0.0.0
+FLASK_PORT=5001
 FLASK_DEBUG=false
 ```
 
@@ -188,7 +188,7 @@ Debug endpoint for testing API connectivity and data availability.
 python3 test_api.py
 
 # Manual curl test
-curl -X POST http://127.0.0.1:5000/recommend \
+curl -X POST http://127.0.0.1:5001/recommend \
      -H "Content-Type: application/json" \
      -d '{
        "last_ride": "Flight of the Hippogriff™",
@@ -220,7 +220,7 @@ flutter test --coverage
 ```bash
 # Use production WSGI server
 pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 predictive_in_park:app
+gunicorn -w 4 -b 0.0.0.0:5001 predictive_in_park:app
 ```
 
 ### Mobile App Release

@@ -744,33 +744,36 @@ class _MapScreenState extends State<MapScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 10)),
-        const SizedBox(height: 4),
-        DropdownButtonFormField<String>(
-          value: value,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            isDense: true,
-          ),
-          hint: const Text('Select', style: TextStyle(fontSize: 9)),
-          isExpanded: true,
-          style: const TextStyle(fontSize: 8, color: Colors.black),
-          items: rideCoordinates.keys.map((String rideName) {
-            return DropdownMenuItem<String>(
-              value: rideName,
-              child: SizedBox(
-                width: double.infinity,
-                child: Text(
-                  rideName,
-                  style: const TextStyle(fontSize: 8),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 9)),
+        const SizedBox(height: 2),
+        Container(
+          constraints: const BoxConstraints(maxWidth: 120),
+          child: DropdownButtonFormField<String>(
+            value: value,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              isDense: true,
+            ),
+            hint: const Text('Select', style: TextStyle(fontSize: 7)),
+            isExpanded: true,
+            style: const TextStyle(fontSize: 7, color: Colors.black),
+            items: rideCoordinates.keys.map((String rideName) {
+              return DropdownMenuItem<String>(
+                value: rideName,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 100),
+                  child: Text(
+                    rideName,
+                    style: const TextStyle(fontSize: 7),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                 ),
-              ),
-            );
-          }).toList(),
-          onChanged: onChanged,
+              );
+            }).toList(),
+            onChanged: onChanged,
+          ),
         ),
       ],
     );
