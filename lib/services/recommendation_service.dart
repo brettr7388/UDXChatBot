@@ -6,14 +6,14 @@ import '../models/recommendation.dart';
 class RecommendationService extends ChangeNotifier {
   // Use a more flexible URL that can be configured
   static const String _baseUrl = kDebugMode 
-    ? 'http://127.0.0.1:5001'  // Development mode - changed to port 5001
-    : 'https://your-production-api.herokuapp.com';  // Production mode
+    ? 'https://udxchatbot.onrender.com'  // Always use cloud API first
+    : 'https://udxchatbot.onrender.com';  // Production mode - cloud API
   
   // Alternative: Try multiple endpoints for better reliability
   static const List<String> _fallbackUrls = [
-    'http://127.0.0.1:5001',
-    'http://10.132.188.218:5001', // Your laptop's local IP - updated to port 5001
-    'http://10.132.188.218:5001',    // Alternative local IP - updated to port 5001
+    'https://udxchatbot.onrender.com',    // Cloud API - PRIMARY
+    'http://10.132.188.218:5001',         // Your laptop's local IP - BACKUP
+    'http://127.0.0.1:5001',              // Localhost - BACKUP
   ];
   
   bool _isLoading = false;
@@ -33,7 +33,8 @@ class RecommendationService extends ChangeNotifier {
 
   // Try multiple URLs to find a working API endpoint
   Future<http.Response?> _tryApiCall(String endpoint, {Map<String, dynamic>? body}) async {
-    List<String> urlsToTry = kDebugMode ? [_baseUrl] : _fallbackUrls;
+    // Always try all fallback URLs for maximum reliability
+    List<String> urlsToTry = _fallbackUrls;
     
     for (String baseUrl in urlsToTry) {
       try {
@@ -45,16 +46,17 @@ class RecommendationService extends ChangeNotifier {
             uri,
             headers: {'Content-Type': 'application/json'},
             body: json.encode(body),
-          ).timeout(const Duration(seconds: 5));
+          ).timeout(const Duration(seconds: 10)); // Increased timeout for cloud API
         } else {
-          response = await http.get(uri).timeout(const Duration(seconds: 5));
+          response = await http.get(uri).timeout(const Duration(seconds: 10));
         }
         
         if (response.statusCode == 200) {
+          debugPrint('✅ API call successful to: $baseUrl');
           return response;
         }
       } catch (e) {
-        debugPrint('Failed to connect to $baseUrl: $e');
+        debugPrint('❌ Failed to connect to $baseUrl: $e');
         continue;
       }
     }
