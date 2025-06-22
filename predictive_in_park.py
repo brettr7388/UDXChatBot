@@ -53,6 +53,10 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)  # Enable CORS for mobile app access
 
+# Load configuration based on environment
+env_config = os.getenv("PROD_APP_SETTINGS", "config.DevelopmentConfig")
+app.config.from_object(env_config)
+
 # Configuration from environment variables
 FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')  # Changed to 0.0.0.0 to accept connections from any IP
 FLASK_PORT = int(os.getenv('FLASK_PORT', 5001))  # Changed default from 5000 to 5001 to avoid macOS AirPlay conflict

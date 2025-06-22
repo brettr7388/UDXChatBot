@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: universal-orlando-api
+    runtime: python3
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn predictive_in_park:app
+    envVars:
+      - key: PROD_APP_SETTINGS
+        value: config.ProductionConfig
+      - key: PYTHON_VERSION
+        value: 3.11.0 
