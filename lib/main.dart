@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/main_screen.dart';
 import 'services/recommendation_service.dart';
 import 'services/location_service.dart';
+import 'services/personality_service.dart';
 
 void main() async {
   // Ensure Flutter is initialized
@@ -24,6 +25,7 @@ class UniversalStudiosApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => RecommendationService()),
         ChangeNotifierProvider(create: (_) => LocationService()),
+        ChangeNotifierProvider(create: (_) => PersonalityService()),
       ],
       child: MaterialApp(
         title: 'Universal Studios Orlando',

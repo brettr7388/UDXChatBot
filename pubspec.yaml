@@ -23,6 +23,9 @@ dependencies:
   # State management
   provider: ^6.1.2
   
+  # Persistent storage
+  shared_preferences: ^2.2.2
+  
   # JSON handling
   json_annotation: ^4.8.1
   
@@ -46,5 +49,6 @@ flutter:
   
   assets:
     - assets/images/
+    - assets/images/personalities/
     - assets/icons/
     - .env 

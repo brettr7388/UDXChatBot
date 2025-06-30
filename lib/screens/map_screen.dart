@@ -9,6 +9,9 @@ import '../services/location_service.dart';
 import 'dart:math' as math;
 import '../services/recommendation_service.dart';
 import '../services/directions_service.dart';
+import '../services/personality_service.dart';
+import '../models/bot_personality.dart';
+import '../widgets/personality_avatar.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -781,13 +784,25 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<LocationService>(
-      builder: (context, locationService, child) {
+    return Consumer2<LocationService, PersonalityService>(
+      builder: (context, locationService, personalityService, child) {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Universal Orlando Map'),
             backgroundColor: const Color(0xFF1976D2),
             elevation: 0,
+            leading: GestureDetector(
+              onTap: () {
+                _showBotProfileDialog(context);
+              },
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                child: PersonalityAvatar(
+                  personality: personalityService.selectedPersonality,
+                  size: 40,
+                ),
+              ),
+            ),
             actions: [
               if (locationService.currentPark != null)
                 Container(
@@ -1258,6 +1273,258 @@ class _MapScreenState extends State<MapScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _showBotProfileDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Consumer<PersonalityService>(
+        builder: (context, personalityService, child) => AlertDialog(
+          title: const Text('Choose Your Assistant'),
+          content: Container(
+            width: 300,
+            height: 400,
+            child: ListView.builder(
+              itemCount: BotPersonality.values.length,
+              itemBuilder: (context, index) {
+                final personality = BotPersonality.values[index];
+                final isSelected = personalityService.selectedPersonality == personality;
+                
+                return Card(
+                  elevation: isSelected ? 4 : 1,
+                  color: isSelected ? Colors.blue[50] : null,
+                  margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  child: InkWell(
+                    onTap: () async {
+                      await personalityService.setPersonality(personality);
+                      Navigator.pop(context);
+                      
+                      // Show confirmation snackbar
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${personality.displayName} selected as your assistant!'),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          // Centered avatar
+                          Container(
+                            width: 60,
+                            child: Center(
+                              child: PersonalityAvatar(
+                                personality: personality,
+                                size: 45,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Text content
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  personality.displayName,
+                                  style: TextStyle(
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  personality.description,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Selection indicator
+                          if (isSelected)
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              child: const Icon(
+                                Icons.check_circle,
+                                color: Colors.blue,
+                                size: 24,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showOptionsMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Map Options',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Settings'),
+              onTap: () {
+                Navigator.pop(context);
+                _showSettingsDialog(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.help_outline),
+              title: const Text('Help'),
+              onTap: () {
+                Navigator.pop(context);
+                _showHelpDialog(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('About'),
+              onTap: () {
+                Navigator.pop(context);
+                _showAboutDialog(context);
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSettingsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Settings'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Map Settings:'),
+            SizedBox(height: 10),
+            Text('• Location accuracy: High'),
+            Text('• Auto-center on location: Enabled'),
+            Text('• Show visited rides: Enabled'),
+            Text('• Show wait times: Enabled'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHelpDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Help'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('How to use the map:'),
+            SizedBox(height: 10),
+            Text('• Tap on ride markers to see details'),
+            Text('• Use the location button to center on your position'),
+            Text('• Chat with the AI assistant for recommendations'),
+            Text('• Use zoom controls to navigate the map'),
+            SizedBox(height: 10),
+            Text('The app will automatically track your location and suggest the best rides to visit next!'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('About'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Universal Orlando Chatbot'),
+            SizedBox(height: 5),
+            Text('Version 1.0.0'),
+            SizedBox(height: 10),
+            Text('Your intelligent companion for Universal Orlando Resort.'),
+            SizedBox(height: 10),
+            Text('Features:'),
+            Text('• Real-time ride recommendations'),
+            Text('• Live wait times'),
+            Text('• Interactive maps'),
+            Text('• AI-powered chatbot'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 } 

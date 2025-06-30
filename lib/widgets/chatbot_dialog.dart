@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'dart:math';
 import '../services/recommendation_service.dart';
 import '../services/location_service.dart';
+import '../services/personality_service.dart';
 import '../models/recommendation.dart';
+import 'personality_avatar.dart';
 
 class ChatbotDialog extends StatefulWidget {
   final Function(String fromRide, String toRide)? onDirectionsRequested;
@@ -81,13 +83,7 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
   @override
   void initState() {
     super.initState();
-    _messages.add(
-      ChatMessage(
-        text: "Hi there! 👋 I'm your Universal Orlando assistant. I'm tracking your location to give you the best recommendations!\n\nWhat can I recommend for you today?",
-        isBot: true,
-        timestamp: DateTime.now(),
-      ),
-    );
+    // Initial message will be set in build method after PersonalityService is available
   }
 
   void _sendMessage() async {
@@ -189,11 +185,13 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
         }
         _sessionRecommendations.add(recommendedRide);
         
-        final responseText = "🔄 **Alternative Recommendation** for $_lastPark!\n\n"
-               "**$recommendedRide**\n"
-               "⏱️ Wait time: $waitTime minutes\n"
-               "🚶 Walking time: ~$walkingMinutes minute${walkingMinutes == 1 ? '' : 's'}\n\n"
-               "How about this one instead? 🎢✨";
+        final personalityService = context.read<PersonalityService>();
+        final responseText = personalityService.generateAlternativeMessage(
+          rideName: recommendedRide,
+          park: _lastPark!,
+          waitTime: waitTime,
+          walkingTime: walkingMinutes,
+        );
         
         setState(() {
           _messages.add(ChatMessage(
@@ -308,13 +306,7 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
         // Fallback: Get park-specific recommendation
         recommendedRide = _getParkSpecificRecommendation(currentPark, excludeRides.toList());
         if (recommendedRide == null) {
-          return "🎢 Looks like you've experienced most of the rides in $currentPark! 🎉\n\n"
-                 "You could:\n"
-                 "• Visit the other park for new adventures\n"
-                 "• Re-ride your favorites\n"
-                 "• Explore dining and shopping\n"
-                 "• Take a break and enjoy the atmosphere!\n\n"
-                 "What sounds good to you?";
+          return                  context.read<PersonalityService>().generateNoRidesMessage(currentPark);
         }
       }
       
@@ -332,11 +324,14 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
                        "💡 Today's recommendations: ${todaysRecommendations.length}";
         }
         
-        final responseText = "🎢 Perfect! Based on your location in $currentPark, I recommend:\n\n"
-               "**$recommendedRide**\n"
-               "⏱️ Wait time: $waitTime minutes\n"
-               "🚶 Walking time: ~$walkingMinutes minute${walkingMinutes == 1 ? '' : 's'}\n\n"
-               "This looks like a great choice right now! Have fun! 🎉$sessionInfo";
+        final personalityService = context.read<PersonalityService>();
+        final responseText = personalityService.generateRecommendationMessage(
+          rideName: recommendedRide,
+          park: currentPark,
+          waitTime: waitTime,
+          walkingTime: walkingMinutes,
+          sessionInfo: sessionInfo,
+        );
         
         // Add the recommendation message with direction data
         setState(() {
@@ -435,11 +430,7 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
       return debugInfo;
     } else if (message.contains('food') || message.contains('eat') || message.contains('restaurant')) {
       String parkContext = locationService.currentPark ?? "the park";
-      return "🍕 Great question! Looking for food in $parkContext? Here are some popular dining options overall:\n\n"
-             "🏰 **Three Broomsticks** (Islands of Adventure)\n"
-             "🍔 **Krusty Burger** (Universal Studios)\n"
-             "🌮 **Leaky Cauldron** (Universal Studios)\n\n"
-             "I can give walking directions if you'd like!";
+      return context.read<PersonalityService>().generateFoodResponse(parkContext);
     } else if (message.contains('where am i') || message.contains('current location')){
       final currentLoc = locationService.currentLocationLatLng;
       final currentPark = locationService.currentPark;
@@ -465,13 +456,7 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
              "🔴 **Busiest**: Lunch time (12-2pm) & early evening (4-6pm)\n\n"
              "Would you like me to recommend rides with shorter wait times right now?";
     } else if (message.contains('hello') || message.contains('hi') || message.contains('hey')) {
-      return "Hello! 👋 I'm excited to help you make the most of your Universal Orlando visit!\n\n"
-             "I can help you with:\n"
-             "🎢 Ride recommendations\n"
-             "🍕 Food suggestions\n"
-             "🛍️ Shopping locations\n"
-             "⏰ Wait time info\n\n"
-             "What sounds most interesting to you?";
+      return context.read<PersonalityService>().generateGreetingResponse();
     } else {
       return "I'd love to help! I specialize in Universal Orlando recommendations. Try asking me about:\n\n"
              "🎢 \"What ride should I go on next?\"\n"
@@ -497,9 +482,22 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      child: Container(
+    return Consumer<PersonalityService>(
+      builder: (context, personalityService, child) {
+        // Add initial message if empty
+        if (_messages.isEmpty) {
+          _messages.add(
+            ChatMessage(
+              text: "${personalityService.getPersonalityGreeting()}\n\nWhat can I recommend for you today?",
+              isBot: true,
+              timestamp: DateTime.now(),
+            ),
+          );
+        }
+        
+        return Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          child: Container(
         height: MediaQuery.of(context).size.height * 0.7,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
@@ -519,12 +517,16 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.smart_toy, color: Colors.white, size: 24),
+                  PersonalityAvatar(
+                    personality: personalityService.selectedPersonality,
+                    size: 24,
+                    backgroundColor: Colors.white.withOpacity(0.2),
+                  ),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Universal Assistant',
-                      style: TextStyle(
+                      personalityService.getPersonalityName(),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -548,7 +550,7 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
                   if (index == _messages.length && _isLoading) {
                     return _buildLoadingMessage();
                   }
-                  return _buildMessage(_messages[index]);
+                  return _buildMessage(_messages[index], personalityService);
                 },
               ),
             ),
@@ -615,31 +617,50 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
         ),
       ),
     );
+      },
+    );
   }
 
-  Widget _buildMessage(ChatMessage message) {
+  Widget _buildMessage(ChatMessage message, PersonalityService personalityService) {
     return Align(
       alignment: message.isBot ? Alignment.centerLeft : Alignment.centerRight,
       child: Column(
         crossAxisAlignment: message.isBot ? CrossAxisAlignment.start : CrossAxisAlignment.end,
         children: [
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(12),
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.75,
-            ),
-            decoration: BoxDecoration(
-              color: message.isBot ? Colors.grey[100] : const Color(0xFF1976D2),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              message.text,
-              style: TextStyle(
-                color: message.isBot ? Colors.black87 : Colors.white,
-                fontSize: 14,
+          Row(
+            mainAxisAlignment: message.isBot ? MainAxisAlignment.start : MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Bot avatar - only show for bot messages
+              if (message.isBot) ...[
+                Container(
+                  margin: const EdgeInsets.only(right: 8, top: 4),
+                  child: PersonalityAvatar(
+                    personality: personalityService.selectedPersonality,
+                    size: 32,
+                  ),
+                ),
+              ],
+              // Message bubble
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.65, // Reduced to accommodate avatar
+                ),
+                decoration: BoxDecoration(
+                  color: message.isBot ? Colors.grey[100] : const Color(0xFF1976D2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  message.text,
+                  style: TextStyle(
+                    color: message.isBot ? Colors.black87 : Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
           // Add refresh and directions buttons for recommendation messages
           if (message.isBot && message.recommendedRideName != null)
