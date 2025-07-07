@@ -517,15 +517,9 @@ class _ChatbotDialogState extends State<ChatbotDialog> {
               ),
               child: Row(
                 children: [
-                  PersonalityAvatar(
-                    personality: personalityService.selectedPersonality,
-                    size: 24,
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                  ),
-                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      personalityService.getPersonalityName(),
+                      'Chat with ${personalityService.getPersonalityName()}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
